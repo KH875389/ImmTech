@@ -7,8 +7,8 @@ TagManager:
   - RedGem
   - Gem
   - Anchor
-  - GreenGem
-  - PurpleGem
+  - PGem
+  - GGem
   layers:
   - Default
   - TransparentFX
