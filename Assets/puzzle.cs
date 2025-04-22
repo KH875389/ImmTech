@@ -3,26 +3,31 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
-public class puzzle : MonoBehaviour
+public class Puzzle : MonoBehaviour
 {
+    [Header("Sockets & Button")]
     public XRSocketInteractor[] sockets;
     public XRBaseInteractable button;
-    public Transform doorTransform; // The door GameObject's transform
-    public Vector3 openRotation = new Vector3(0, 90, 0); // How the door should rotate
+
+    [Header("Door Settings")]
+    public Transform doorTransform;
+    public float doorDropDistance = 1.5f;  // How far the door moves down
     public float openSpeed = 2f;
 
     private bool isButtonUnlocked = false;
     private bool doorOpening = false;
-    private Quaternion targetRotation;
+    private Vector3 targetPosition;
+    private Vector3 initialPosition;
 
     private void Start()
     {
         if (button == null || doorTransform == null)
         {
-            Debug.LogError("Button or Door Transform not assigned.");
+            Debug.LogError("❌ Button or Door Transform not assigned.");
             return;
         }
 
+        initialPosition = doorTransform.localPosition;
         SetButtonInteractable(false);
 
         foreach (var socket in sockets)
@@ -34,7 +39,7 @@ public class puzzle : MonoBehaviour
             }
         }
 
-        button.selectEntered.AddListener((args) => OnButtonPressed());
+        button.selectEntered.AddListener(OnButtonPressed);
     }
 
     private void OnDestroy()
@@ -43,24 +48,30 @@ public class puzzle : MonoBehaviour
         {
             if (socket != null)
             {
-                socket.selectEntered.RemoveAllListeners();
-                socket.selectExited.RemoveAllListeners();
+                socket.selectEntered.AddListener((args) => OnSocketUpdate());
+                socket.selectExited.AddListener((args) => OnSocketUpdate());
             }
         }
 
-        button.selectEntered.RemoveAllListeners();
+        if (button != null)
+        {
+            button.selectEntered.RemoveListener(OnButtonPressed);
+        }
     }
 
     private void Update()
     {
         if (doorOpening)
         {
-            doorTransform.rotation = Quaternion.Slerp(doorTransform.rotation, targetRotation, Time.deltaTime * openSpeed);
+            doorTransform.localPosition = Vector3.MoveTowards(
+                doorTransform.localPosition,
+                targetPosition,
+                Time.deltaTime * openSpeed
+            );
 
-            // Optional: stop when close to target
-            if (Quaternion.Angle(doorTransform.rotation, targetRotation) < 0.5f)
+            if (Vector3.Distance(doorTransform.localPosition, targetPosition) < 0.01f)
             {
-                doorTransform.rotation = targetRotation;
+                doorTransform.localPosition = targetPosition;
                 doorOpening = false;
             }
         }
@@ -70,18 +81,24 @@ public class puzzle : MonoBehaviour
     {
         if (!isButtonUnlocked && AllSocketsFilled())
         {
-            SetButtonInteractable(true);
             isButtonUnlocked = true;
+            SetButtonInteractable(true);
             Debug.Log("✔ All sockets filled. Button is now active!");
+        }
+        else if (isButtonUnlocked && !AllSocketsFilled())
+        {
+            isButtonUnlocked = false;
+            SetButtonInteractable(false);
+            Debug.Log("❌ One or more sockets are now empty. Button disabled.");
         }
     }
 
-    private void OnButtonPressed()
+    private void OnButtonPressed(SelectEnterEventArgs args)
     {
         if (isButtonUnlocked && !doorOpening)
         {
-            Debug.Log("🔓 Button pressed. Opening door!");
-            targetRotation = Quaternion.Euler(doorTransform.localEulerAngles + openRotation);
+            Debug.Log("🔓 Button pressed. Lowering door!");
+            targetPosition = initialPosition + new Vector3(0, -doorDropDistance, 0);
             doorOpening = true;
         }
     }
